@@ -42,11 +42,13 @@ def test_temperature_widget_sensor_reads_widget_value() -> None:
 def test_current_gear_sensor_exposes_name_and_attributes() -> None:
     """Current gear sensor maps int gear to integration option name."""
     coordinator = SimpleNamespace(
-        data={"current_gear": 3, "current_slot_index": 2, "schedules": {1: []}},
+        data={"current_gear": 3, "current_slot_index": 2},
     )
     sensor = CurrentGearSensor(coordinator, "module-1")
     assert sensor.native_value == "gear_3"
-    assert sensor.extra_state_attributes["current_slot_index"] == 2
+    attrs = sensor.extra_state_attributes
+    assert attrs["current_slot_index"] == 2
+    assert "schedules" not in attrs
 
 
 def test_heat_recovery_efficiency_is_computed_and_clamped() -> None:

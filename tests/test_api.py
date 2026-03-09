@@ -14,10 +14,11 @@ from custom_components.tech_recuperation.api import (
 
 
 class _FakeResponse:
-    def __init__(self, status: int, payload=None, text: str = "") -> None:
+    def __init__(self, status: int, payload=None, text: str = "", *, raise_json: Exception | None = None) -> None:
         self.status = status
         self._payload = payload if payload is not None else {}
         self._text = text
+        self._raise_json = raise_json
 
     async def __aenter__(self):
         return self
@@ -26,6 +27,8 @@ class _FakeResponse:
         return False
 
     async def json(self):
+        if self._raise_json is not None:
+            raise self._raise_json
         return self._payload
 
     async def text(self):
@@ -37,12 +40,13 @@ class _FakeSession:
         self._response = response
         self.last_request = None
 
-    def request(self, method, url, headers=None, json=None):
+    def request(self, method, url, headers=None, json=None, timeout=None):
         self.last_request = {
             "method": method,
             "url": url,
             "headers": headers,
             "json": json,
+            "timeout": timeout,
         }
         return self._response
 
@@ -56,10 +60,41 @@ async def test_request_raises_auth_error_on_401() -> None:
 
 
 @pytest.mark.asyncio
-async def test_request_raises_api_error_on_non_200() -> None:
-    """Non-200 responses raise TechApiError with response text."""
+async def test_request_raises_api_error_on_non_2xx() -> None:
+    """Non-2xx responses raise TechApiError with response text."""
     api = TechAPI(_FakeSession(_FakeResponse(status=500, text="boom")))
     with pytest.raises(TechApiError, match="500"):
+        await api._request("GET", "users/1/modules", token="token")
+
+    # 301 is also non-2xx
+    api_301 = TechAPI(_FakeSession(_FakeResponse(status=301, text="redirect")))
+    with pytest.raises(TechApiError, match="301"):
+        await api_301._request("GET", "users/1/modules", token="token")
+
+
+@pytest.mark.asyncio
+async def test_request_accepts_2xx_range() -> None:
+    """Any 2xx response is accepted without error."""
+    api = TechAPI(_FakeSession(_FakeResponse(status=201, payload={"created": True})))
+    result = await api._request("POST", "users/1/modules", token="token")
+    assert result == {"created": True}
+
+
+@pytest.mark.asyncio
+async def test_request_sends_timeout() -> None:
+    """Requests include the module-level timeout."""
+    from custom_components.tech_recuperation.api import REQUEST_TIMEOUT
+    session = _FakeSession(_FakeResponse(status=200, payload={"ok": True}))
+    api = TechAPI(session)
+    await api._request("GET", "users/1/modules", token="token")
+    assert session.last_request["timeout"] is REQUEST_TIMEOUT
+
+
+@pytest.mark.asyncio
+async def test_request_raises_on_malformed_json() -> None:
+    """Malformed JSON body raises TechApiError."""
+    api = TechAPI(_FakeSession(_FakeResponse(status=200, raise_json=ValueError("bad json"))))
+    with pytest.raises(TechApiError, match="Invalid response body"):
         await api._request("GET", "users/1/modules", token="token")
 
 
@@ -87,3 +122,46 @@ async def test_set_schedule_posts_universal_schedule_payload() -> None:
     assert session.last_request is not None
     assert session.last_request["method"] == "POST"
     assert session.last_request["json"] == {"universal_schedule": slots}
+
+
+@pytest.mark.asyncio
+async def test_authenticate_validates_response_fields() -> None:
+    """authenticate raises TechApiError if user_id or token missing."""
+    # Missing user_id
+    api_no_uid = TechAPI(_FakeSession(_FakeResponse(
+        status=200,
+        payload={"authenticated": True, "token": "t"},
+    )))
+    with pytest.raises(TechApiError, match="missing user_id or token"):
+        await api_no_uid.authenticate("user", "pass")
+
+    # Missing token
+    api_no_tok = TechAPI(_FakeSession(_FakeResponse(
+        status=200,
+        payload={"authenticated": True, "user_id": 1},
+    )))
+    with pytest.raises(TechApiError, match="missing user_id or token"):
+        await api_no_tok.authenticate("user", "pass")
+
+
+@pytest.mark.asyncio
+async def test_authenticate_raises_on_bad_credentials() -> None:
+    """authenticate raises TechAuthError on failed authentication."""
+    api = TechAPI(_FakeSession(_FakeResponse(
+        status=200,
+        payload={"authenticated": False},
+    )))
+    with pytest.raises(TechAuthError, match="Invalid username"):
+        await api.authenticate("user", "pass")
+
+
+@pytest.mark.asyncio
+async def test_authenticate_success() -> None:
+    """authenticate returns result dict on success."""
+    api = TechAPI(_FakeSession(_FakeResponse(
+        status=200,
+        payload={"authenticated": True, "user_id": 42, "token": "tok123"},
+    )))
+    result = await api.authenticate("user", "pass")
+    assert result["user_id"] == 42
+    assert result["token"] == "tok123"

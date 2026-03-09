@@ -6,6 +6,7 @@ from typing import Any
 
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .const import DOMAIN
 from .coordinator import TechRecuperationCoordinator
 
 
@@ -23,7 +24,7 @@ class TechRecuperationEntity(CoordinatorEntity[TechRecuperationCoordinator]):
     def device_info(self) -> dict[str, Any]:
         """Return shared device info."""
         return {
-            "identifiers": {("tech_recuperation", self._udid)},
+            "identifiers": {(DOMAIN, self._udid)},
             "name": "Wanas Recuperation",
             "manufacturer": "Tech / Wanas",
             "model": "ST-340 V2",

@@ -25,6 +25,10 @@ from custom_components.tech_recuperation.switch import RecuperationPowerSwitch
 @pytest.fixture
 def coordinator() -> SimpleNamespace:
     """Coordinator-like object used by entity tests."""
+
+    async def _passthrough_api_call(coro_factory):
+        return await coro_factory()
+
     return SimpleNamespace(
         user_id=1,
         token="token",
@@ -43,6 +47,7 @@ def coordinator() -> SimpleNamespace:
         async_request_refresh=AsyncMock(),
         async_set_gear_now=AsyncMock(),
         async_restore_day_schedule=AsyncMock(),
+        _async_api_call=AsyncMock(side_effect=_passthrough_api_call),
     )
 
 

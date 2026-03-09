@@ -7,12 +7,15 @@ from datetime import timedelta
 from typing import Any
 
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import TechAPI, TechApiError, TechAuthError
 from .const import (
+    CONF_TOKEN,
+    CONF_USER_ID,
     DAY_ELEMENT_IDS,
     DOMAIN,
     MENU_ID_SCHEDULE_PARENT,
@@ -112,6 +115,7 @@ class TechRecuperationCoordinator(DataUpdateCoordinator):
         username: str | None = None,
         password: str | None = None,
         backup_store: Store[dict[str, Any]] | None = None,
+        config_entry: Any | None = None,
     ) -> None:
         """Initialize the coordinator."""
         super().__init__(
@@ -127,6 +131,7 @@ class TechRecuperationCoordinator(DataUpdateCoordinator):
         self.username = username
         self.password = password
         self._backup_store = backup_store
+        self._config_entry = config_entry
         self._schedule_backups: dict[int, list[dict[str, int]]] = {}
 
     @property
@@ -160,6 +165,38 @@ class TechRecuperationCoordinator(DataUpdateCoordinator):
         payload = {str(day_id): slots for day_id, slots in self._schedule_backups.items()}
         await self._backup_store.async_save(payload)
 
+    async def _async_reauth(self) -> None:
+        """Re-authenticate and persist the new token."""
+        if not self.username or not self.password:
+            raise TechAuthError("Cannot re-authenticate: no stored credentials")
+
+        _LOGGER.info("Token expired, re-authenticating with eMODUL")
+        auth = await self.api.authenticate(self.username, self.password)
+        self.user_id = int(auth["user_id"])
+        self.token = str(auth["token"])
+
+        if self._config_entry is not None:
+            self.hass.config_entries.async_update_entry(
+                self._config_entry,
+                data={
+                    **self._config_entry.data,
+                    CONF_USER_ID: self.user_id,
+                    CONF_TOKEN: self.token,
+                },
+            )
+
+    async def _async_api_call(self, coro_factory):
+        """Execute an API call with automatic re-auth on 401.
+
+        coro_factory is a zero-arg callable that returns an awaitable
+        using the current self.user_id / self.token.
+        """
+        try:
+            return await coro_factory()
+        except TechAuthError:
+            await self._async_reauth()
+            return await coro_factory()
+
     async def _async_fetch(self) -> tuple[dict[str, Any], dict[str, Any]]:
         """Fetch module and menu data, re-authenticating if needed."""
         try:
@@ -170,15 +207,8 @@ class TechRecuperationCoordinator(DataUpdateCoordinator):
                 self.user_id, self.token, self.udid
             )
             return module_data, menu_data
-        except TechAuthError as err:
-            if not self.username or not self.password:
-                raise UpdateFailed(f"Authentication failed: {err}") from err
-
-            _LOGGER.info("Token expired, re-authenticating with eMODUL")
-            auth = await self.api.authenticate(self.username, self.password)
-            self.user_id = int(auth["user_id"])
-            self.token = str(auth["token"])
-
+        except TechAuthError:
+            await self._async_reauth()
             module_data = await self.api.get_module_data(
                 self.user_id, self.token, self.udid
             )
@@ -242,12 +272,10 @@ class TechRecuperationCoordinator(DataUpdateCoordinator):
 
         element_id = DAY_ELEMENT_IDS[day_id]
         normalized = normalize_slots(slots)
-        await self.api.set_schedule(
-            self.user_id,
-            self.token,
-            self.udid,
-            element_id,
-            normalized,
+        await self._async_api_call(
+            lambda: self.api.set_schedule(
+                self.user_id, self.token, self.udid, element_id, normalized,
+            )
         )
         await self.async_request_refresh()
 
@@ -256,10 +284,10 @@ class TechRecuperationCoordinator(DataUpdateCoordinator):
     ) -> None:
         """Set gear from now to end of day by rewriting day's schedule."""
         if gear < 0 or gear > 3:
-            raise UpdateFailed(f"Invalid gear value: {gear}")
+            raise HomeAssistantError(f"Invalid gear value: {gear}")
         slots = self.get_day_schedule(day_id)
         if not slots:
-            raise UpdateFailed(f"No schedule found for day_id {day_id}")
+            raise HomeAssistantError(f"No schedule found for day_id {day_id}")
         if day_id not in self._schedule_backups:
             self._schedule_backups[day_id] = [dict(slot) for slot in slots]
             await self._async_save_backups()
@@ -269,12 +297,10 @@ class TechRecuperationCoordinator(DataUpdateCoordinator):
         effective_now = minutes_now(now) if day_id == today_day_id else 0
         updated = apply_gear_now(slots, gear, temp=temp, now_minute=effective_now)
         element_id = DAY_ELEMENT_IDS[day_id]
-        await self.api.set_schedule(
-            self.user_id,
-            self.token,
-            self.udid,
-            element_id,
-            updated,
+        await self._async_api_call(
+            lambda: self.api.set_schedule(
+                self.user_id, self.token, self.udid, element_id, updated,
+            )
         )
         await self.async_request_refresh()
 
@@ -288,15 +314,15 @@ class TechRecuperationCoordinator(DataUpdateCoordinator):
     ) -> None:
         """Set gear until specific minute by rewriting day's schedule."""
         if gear < 0 or gear > 3:
-            raise UpdateFailed(f"Invalid gear value: {gear}")
+            raise HomeAssistantError(f"Invalid gear value: {gear}")
         if until_minute < 0 or until_minute > 1439:
-            raise UpdateFailed(f"Invalid until minute: {until_minute}")
+            raise HomeAssistantError(f"Invalid until minute: {until_minute}")
         if revert_gear is not None and (revert_gear < 0 or revert_gear > 3):
-            raise UpdateFailed(f"Invalid revert gear value: {revert_gear}")
+            raise HomeAssistantError(f"Invalid revert gear value: {revert_gear}")
 
         slots = self.get_day_schedule(day_id)
         if not slots:
-            raise UpdateFailed(f"No schedule found for day_id {day_id}")
+            raise HomeAssistantError(f"No schedule found for day_id {day_id}")
 
         if day_id not in self._schedule_backups:
             self._schedule_backups[day_id] = [dict(slot) for slot in slots]
@@ -314,12 +340,10 @@ class TechRecuperationCoordinator(DataUpdateCoordinator):
             now_minute=effective_now,
         )
         element_id = DAY_ELEMENT_IDS[day_id]
-        await self.api.set_schedule(
-            self.user_id,
-            self.token,
-            self.udid,
-            element_id,
-            updated,
+        await self._async_api_call(
+            lambda: self.api.set_schedule(
+                self.user_id, self.token, self.udid, element_id, updated,
+            )
         )
         await self.async_request_refresh()
 
@@ -327,16 +351,14 @@ class TechRecuperationCoordinator(DataUpdateCoordinator):
         """Restore previously backed-up schedule for a day."""
         backup = self._schedule_backups.get(day_id)
         if not backup:
-            raise UpdateFailed(f"No backup schedule found for day_id {day_id}")
+            raise HomeAssistantError(f"No backup schedule found for day_id {day_id}")
 
         element_id = DAY_ELEMENT_IDS[day_id]
         normalized = normalize_slots(backup)
-        await self.api.set_schedule(
-            self.user_id,
-            self.token,
-            self.udid,
-            element_id,
-            normalized,
+        await self._async_api_call(
+            lambda: self.api.set_schedule(
+                self.user_id, self.token, self.udid, element_id, normalized,
+            )
         )
         del self._schedule_backups[day_id]
         await self._async_save_backups()

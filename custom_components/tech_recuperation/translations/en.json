@@ -20,8 +20,12 @@
     "error": {
       "invalid_auth": "Invalid authentication",
       "cannot_connect": "Cannot connect",
-      "unknown": "Unexpected error",
-      "no_modules": "No modules found"
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "no_modules": "No modules found on this account",
+      "already_configured": "This module is already configured",
+      "unknown": "Unexpected error"
     }
   }
 }

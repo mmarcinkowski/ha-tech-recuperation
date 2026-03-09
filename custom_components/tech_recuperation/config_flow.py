@@ -11,7 +11,7 @@ from homeassistant import config_entries
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .api import TechAPI, TechAuthError, TechConnectionError
+from .api import TechAPI, TechApiError, TechAuthError, TechConnectionError
 from .const import CONF_MODULE_NAME, CONF_MODULE_UDID, CONF_TOKEN, CONF_USER_ID, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -65,18 +65,24 @@ class TechRecuperationConfigFlow(
                     self._modules = await api.get_modules(
                         self._user_id, self._token
                     )
+                except TechAuthError:
+                    errors["base"] = "invalid_auth"
+                except TechConnectionError:
+                    errors["base"] = "cannot_connect"
+                except TechApiError:
+                    errors["base"] = "cannot_connect"
                 except Exception:
                     _LOGGER.exception("Failed to fetch modules")
-                    errors["base"] = "cannot_connect"
+                    errors["base"] = "unknown"
 
             if not errors:
                 if len(self._modules) == 1:
                     # Auto-select single module
                     module = self._modules[0]
-                    return self._create_entry(module)
+                    return await self._create_entry(module)
                 if len(self._modules) > 1:
                     return await self.async_step_select_module()
-                errors["base"] = "no_modules"
+                return self.async_abort(reason="no_modules")
 
         return self.async_show_form(
             step_id="user",
@@ -96,13 +102,17 @@ class TechRecuperationConfigFlow(
         if user_input is not None:
             udid = user_input[CONF_MODULE_UDID]
             module = next(
-                m for m in self._modules if str(m.get("udid")) == udid
+                (m for m in self._modules if str(m.get("udid")) == udid),
+                None,
             )
-            return self._create_entry(module)
+            if module is None:
+                return self.async_abort(reason="unknown")
+            return await self._create_entry(module)
 
         module_options = {
             str(m.get("udid", "")): m.get("name", m.get("udid", "Unknown"))
             for m in self._modules
+            if m.get("udid")
         }
 
         return self.async_show_form(
@@ -114,12 +124,15 @@ class TechRecuperationConfigFlow(
             ),
         )
 
-    def _create_entry(
+    async def _create_entry(
         self, module: dict[str, Any]
     ) -> config_entries.ConfigFlowResult:
-        """Create the config entry."""
+        """Create the config entry after setting unique id."""
         udid = str(module.get("udid", ""))
         name = module.get("name", "Tech Recuperation")
+
+        await self.async_set_unique_id(udid)
+        self._abort_if_unique_id_configured()
 
         return self.async_create_entry(
             title=name,

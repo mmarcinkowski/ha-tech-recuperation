@@ -25,14 +25,35 @@ if "homeassistant.core" not in sys.modules:
     class HomeAssistant:  # noqa: D101
         pass
 
+    class ServiceCall:  # noqa: D101
+        pass
+
     setattr(core_mod, "HomeAssistant", HomeAssistant)
+    setattr(core_mod, "ServiceCall", ServiceCall)
     sys.modules["homeassistant.core"] = core_mod
+
+if "homeassistant.exceptions" not in sys.modules:
+    exc_mod = types.ModuleType("homeassistant.exceptions")
+
+    class HomeAssistantError(Exception):
+        """Base HA error."""
+
+    class ServiceValidationError(HomeAssistantError):
+        """Service validation error."""
+        def __init__(self, message="", **kwargs):
+            super().__init__(message)
+
+    setattr(exc_mod, "HomeAssistantError", HomeAssistantError)
+    setattr(exc_mod, "ServiceValidationError", ServiceValidationError)
+    sys.modules["homeassistant.exceptions"] = exc_mod
 
 if "homeassistant.config_entries" not in sys.modules:
     ce_mod = types.ModuleType("homeassistant.config_entries")
 
     class ConfigEntry:  # noqa: D101
-        pass
+        def __init__(self):
+            self.data = {}
+            self.entry_id = "test_entry_id"
 
     class ConfigFlow:  # noqa: D101
         def __init_subclass__(cls, **kwargs):
@@ -53,6 +74,18 @@ if "homeassistant.config_entries" not in sys.modules:
                 "data": data,
             }
 
+        def async_abort(self, *, reason):
+            return {
+                "type": "abort",
+                "reason": reason,
+            }
+
+        async def async_set_unique_id(self, unique_id):
+            self._unique_id = unique_id
+
+        def _abort_if_unique_id_configured(self):
+            pass
+
     setattr(ce_mod, "ConfigEntry", ConfigEntry)
     setattr(ce_mod, "ConfigFlow", ConfigFlow)
     setattr(ce_mod, "ConfigFlowResult", dict)
@@ -64,7 +97,15 @@ if "homeassistant.const" not in sys.modules:
     class UnitOfTemperature:  # noqa: D101
         CELSIUS = "C"
 
+    class Platform:  # noqa: D101
+        SENSOR = "sensor"
+        SWITCH = "switch"
+        SELECT = "select"
+        NUMBER = "number"
+        BUTTON = "button"
+
     setattr(const_mod, "UnitOfTemperature", UnitOfTemperature)
+    setattr(const_mod, "Platform", Platform)
     setattr(const_mod, "CONF_USERNAME", "username")
     setattr(const_mod, "CONF_PASSWORD", "password")
     sys.modules["homeassistant.const"] = const_mod
@@ -196,7 +237,11 @@ if "homeassistant.components.sensor" not in sys.modules:
     class SensorEntity:  # noqa: D101
         pass
 
+    class SensorStateClass:  # noqa: D101
+        MEASUREMENT = "measurement"
+
     setattr(sensor_mod, "SensorEntity", SensorEntity)
+    setattr(sensor_mod, "SensorStateClass", SensorStateClass)
     sys.modules["homeassistant.components.sensor"] = sensor_mod
 
 if "homeassistant.components.switch" not in sys.modules:
@@ -219,8 +264,17 @@ if importlib.util.find_spec("aiohttp") is None:
     class ClientSession:  # noqa: D101
         pass
 
+    class ClientTimeout:  # noqa: D101
+        def __init__(self, total=None):
+            self.total = total
+
+    class ContentTypeError(ClientError):
+        """Fallback aiohttp content type error."""
+
     setattr(aiohttp_mod, "ClientError", ClientError)
     setattr(aiohttp_mod, "ClientSession", ClientSession)
+    setattr(aiohttp_mod, "ClientTimeout", ClientTimeout)
+    setattr(aiohttp_mod, "ContentTypeError", ContentTypeError)
     sys.modules["aiohttp"] = aiohttp_mod
 
 

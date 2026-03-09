@@ -91,3 +91,52 @@ async def test_select_module_step_creates_entry() -> None:
     assert result["type"] == "create_entry"
     assert result["title"] == "Unit 2"
     assert result["data"]["module_udid"] == "m2"
+
+
+@pytest.mark.asyncio
+async def test_user_step_no_modules_aborts(monkeypatch) -> None:
+    """No modules triggers an abort instead of a form error."""
+    from custom_components.tech_recuperation import config_flow as cf
+
+    monkeypatch.setattr(cf, "async_get_clientsession", lambda _hass: None)
+    monkeypatch.setattr(cf, "TechAPI", lambda _session: _FakeApi(modules=[]))
+
+    flow = TechRecuperationConfigFlow()
+    flow.hass = object()
+    result = await flow.async_step_user({"username": "u", "password": "p"})
+
+    assert result["type"] == "abort"
+    assert result["reason"] == "no_modules"
+
+
+@pytest.mark.asyncio
+async def test_select_module_step_unknown_udid_aborts() -> None:
+    """Selecting unknown udid aborts with 'unknown'."""
+    flow = TechRecuperationConfigFlow()
+    flow._username = "u"
+    flow._password = "p"
+    flow._user_id = 7
+    flow._token = "t"
+    flow._modules = [{"udid": "m1", "name": "Unit 1"}]
+
+    result = await flow.async_step_select_module({"module_udid": "nonexistent"})
+
+    assert result["type"] == "abort"
+    assert result["reason"] == "unknown"
+
+
+@pytest.mark.asyncio
+async def test_connection_error_shows_form(monkeypatch) -> None:
+    """Connection error during auth returns user form with cannot_connect."""
+    from custom_components.tech_recuperation import config_flow as cf
+    from custom_components.tech_recuperation.api import TechConnectionError
+
+    monkeypatch.setattr(cf, "async_get_clientsession", lambda _hass: None)
+    monkeypatch.setattr(cf, "TechAPI", lambda _session: _FakeApi(auth_exc=TechConnectionError("down")))
+
+    flow = TechRecuperationConfigFlow()
+    flow.hass = object()
+    result = await flow.async_step_user({"username": "u", "password": "p"})
+
+    assert result["type"] == "form"
+    assert result["errors"]["base"] == "cannot_connect"

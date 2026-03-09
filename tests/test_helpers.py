@@ -53,6 +53,13 @@ def test_hhmm_to_minutes() -> None:
     assert hhmm_to_minutes("23:59") == 1439
 
 
+def test_hhmm_to_minutes_handles_hh_mm_ss() -> None:
+    """Parses valid HH:MM:SS values (seconds silently discarded)."""
+    assert hhmm_to_minutes("00:00:00") == 0
+    assert hhmm_to_minutes("12:34:56") == 754
+    assert hhmm_to_minutes("23:59:59") == 1439
+
+
 def test_hhmm_to_minutes_rejects_invalid_values() -> None:
     """Rejects invalid HH:MM values."""
     with pytest.raises(ValueError):

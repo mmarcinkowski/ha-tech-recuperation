@@ -1,5 +1,7 @@
 """Constants for the Tech Recuperation integration."""
 
+from homeassistant.const import Platform
+
 DOMAIN = "tech_recuperation"
 
 # eMODUL API
@@ -92,7 +94,6 @@ CONF_USER_ID = "user_id"
 CONF_TOKEN = "token"
 CONF_MODULE_UDID = "module_udid"
 CONF_MODULE_NAME = "module_name"
-CONF_EMAIL = "email"
 
 # Service names
 SERVICE_SET_DAY_SCHEDULE = "set_day_schedule"
@@ -106,4 +107,10 @@ ATTR_GEAR = "gear"
 ATTR_DAY = "day"
 ATTR_SLOTS = "slots"
 
-PLATFORMS = ["sensor", "switch", "select", "number", "button"]
+PLATFORMS: list[Platform] = [
+    Platform.SENSOR,
+    Platform.SWITCH,
+    Platform.SELECT,
+    Platform.NUMBER,
+    Platform.BUTTON,
+]

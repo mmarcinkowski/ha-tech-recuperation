@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import logging
+
 from homeassistant.components.number import NumberEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .api import TechApiError
 from .const import DOMAIN, MENU_ID_PARTY_MODE_DURATION, MENU_ID_RECUPERATION_PARAM
 from .entity import TechRecuperationEntity
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -82,11 +87,17 @@ class MenuNumberEntity(TechRecuperationEntity, NumberEntity):
         return float(value) if value is not None else None
 
     async def async_set_native_value(self, value: float) -> None:
-        await self.coordinator.api.set_control_value(
-            self.coordinator.user_id,
-            self.coordinator.token,
-            self.coordinator.udid,
-            self._menu_id,
-            int(value),
-        )
+        try:
+            await self.coordinator._async_api_call(
+                lambda: self.coordinator.api.set_control_value(
+                    self.coordinator.user_id,
+                    self.coordinator.token,
+                    self.coordinator.udid,
+                    self._menu_id,
+                    int(value),
+                )
+            )
+        except TechApiError as err:
+            _LOGGER.error("Failed to set %s: %s", self._attr_name, err)
+            raise
         await self.coordinator.async_request_refresh()

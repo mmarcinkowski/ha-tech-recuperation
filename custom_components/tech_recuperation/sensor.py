@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
@@ -54,6 +54,7 @@ class TemperatureTileSensor(TechRecuperationEntity, SensorEntity):
     """Temperature sensor sourced from tile params.value."""
 
     _attr_device_class = "temperature"
+    _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
 
     def __init__(self, coordinator, udid: str, txt_id: int) -> None:
@@ -78,6 +79,7 @@ class TemperatureWidgetSensor(TechRecuperationEntity, SensorEntity):
     """Temperature sensor sourced from tile widget values."""
 
     _attr_device_class = "temperature"
+    _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
 
     def __init__(self, coordinator, udid: str, txt_id: int) -> None:
@@ -103,6 +105,8 @@ class TemperatureWidgetSensor(TechRecuperationEntity, SensorEntity):
 class CurrentGearSensor(TechRecuperationEntity, SensorEntity):
     """Current gear derived from active schedule slot."""
 
+    _attr_icon = "mdi:fan"
+
     def __init__(self, coordinator, udid: str) -> None:
         super().__init__(coordinator, udid)
         self._attr_unique_id = f"{udid}_current_gear"
@@ -116,7 +120,6 @@ class CurrentGearSensor(TechRecuperationEntity, SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         return {
             "current_slot_index": self.coordinator.data.get("current_slot_index", 0),
-            "schedules": self.coordinator.data.get("schedules", {}),
         }
 
 
@@ -124,6 +127,7 @@ class HeatRecoveryEfficiencySensor(TechRecuperationEntity, SensorEntity):
     """Calculated heat recovery efficiency."""
 
     _attr_native_unit_of_measurement = "%"
+    _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 1
 
     def __init__(self, coordinator, udid: str) -> None:

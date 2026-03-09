@@ -11,6 +11,8 @@ from .const import API_BASE_URL
 
 _LOGGER = logging.getLogger(__name__)
 
+REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=15)
+
 
 class TechApiError(Exception):
     """Base exception for Tech API errors."""
@@ -52,16 +54,20 @@ class TechAPI:
 
         try:
             async with self._session.request(
-                method, url, headers=headers, json=json_data
+                method, url, headers=headers, json=json_data, timeout=REQUEST_TIMEOUT,
             ) as resp:
                 if resp.status == 401:
                     raise TechAuthError("Authentication failed or token expired")
-                if resp.status != 200:
+                if not (200 <= resp.status < 300):
                     text = await resp.text()
                     raise TechApiError(
                         f"API request failed: {resp.status} {text}"
                     )
                 return await resp.json()
+        except TechApiError:
+            raise
+        except (ValueError, aiohttp.ContentTypeError) as err:
+            raise TechApiError(f"Invalid response body: {err}") from err
         except aiohttp.ClientError as err:
             raise TechConnectionError(f"Connection error: {err}") from err
 
@@ -77,6 +83,7 @@ class TechAPI:
 
         Raises:
             TechAuthError: If credentials are invalid.
+            TechApiError: If response is missing required fields.
         """
         result = await self._request(
             "POST",
@@ -85,6 +92,10 @@ class TechAPI:
         )
         if not result.get("authenticated"):
             raise TechAuthError("Invalid username or password")
+        if "user_id" not in result or "token" not in result:
+            raise TechApiError(
+                "Authentication response missing user_id or token"
+            )
         return result
 
     # ---- Module endpoints ----

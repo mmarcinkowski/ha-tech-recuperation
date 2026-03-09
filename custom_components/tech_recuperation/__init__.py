@@ -10,11 +10,12 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from .api import TechAPI
+from .api import TechAPI, TechApiError, TechAuthError, TechConnectionError
 from .const import (
     ATTR_DAY,
     ATTR_GEAR,
@@ -68,6 +69,30 @@ RESTORE_DAY_SCHEDULE_SCHEMA = vol.Schema(
 )
 
 
+def _resolve_gear(raw: int | str, field_name: str = "gear") -> int:
+    """Resolve gear name or int to validated int value."""
+    gear = GEAR_NAME_TO_VALUE.get(raw) if isinstance(raw, str) else raw
+    if not isinstance(gear, int):
+        raise ServiceValidationError(
+            f"Unknown {field_name}: {raw}",
+            translation_domain=DOMAIN,
+            translation_key="invalid_gear",
+        )
+    return gear
+
+
+def _get_coordinator(hass: HomeAssistant) -> TechRecuperationCoordinator:
+    """Get the first available coordinator (single-entry shortcut).
+
+    For multi-entry setups, returns the first entry's coordinator.
+    """
+    entries = hass.data.get(DOMAIN, {})
+    if not entries:
+        raise HomeAssistantError("No Tech Recuperation entries configured")
+    entry_id = next(iter(entries))
+    return entries[entry_id]["coordinator"]
+
+
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     """Set up via YAML (not used)."""
     return True
@@ -100,8 +125,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     CONF_TOKEN: token,
                 },
             )
-        except Exception:  # noqa: BLE001
+        except (TechApiError, TechAuthError, TechConnectionError):
             _LOGGER.warning("Could not refresh token at startup, using stored token")
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception("Unexpected error refreshing token at startup")
 
     backup_store: Store[dict[str, Any]] = Store(
         hass,
@@ -118,6 +145,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         username=username,
         password=password,
         backup_store=backup_store,
+        config_entry=entry,
     )
     await coordinator.async_load_backups()
     await coordinator.async_config_entry_first_refresh()
@@ -129,71 +157,66 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    async def async_handle_set_day_schedule(call: ServiceCall) -> None:
-        day_id = resolve_day_id(call.data[ATTR_DAY], dt_util.now())
-        await coordinator.async_set_day_schedule(day_id, call.data[ATTR_SLOTS])
+    # Register services only once (first entry). Handlers resolve coordinator
+    # dynamically so they work correctly when entries are added/removed.
+    if not hass.services.has_service(DOMAIN, SERVICE_SET_DAY_SCHEDULE):
+        async def async_handle_set_day_schedule(call: ServiceCall) -> None:
+            coord = _get_coordinator(hass)
+            day_id = resolve_day_id(call.data[ATTR_DAY], dt_util.now())
+            await coord.async_set_day_schedule(day_id, call.data[ATTR_SLOTS])
 
-    async def async_handle_set_gear_now(call: ServiceCall) -> None:
-        day_id = resolve_day_id(call.data[ATTR_DAY], dt_util.now())
-        gear_raw = call.data[ATTR_GEAR]
-        gear = GEAR_NAME_TO_VALUE.get(gear_raw) if isinstance(gear_raw, str) else gear_raw
-        if not isinstance(gear, int):
-            raise ValueError(f"Unknown gear: {gear_raw}")
-        await coordinator.async_set_gear_now(day_id, gear, call.data.get("temp"))
+        async def async_handle_set_gear_now(call: ServiceCall) -> None:
+            coord = _get_coordinator(hass)
+            day_id = resolve_day_id(call.data[ATTR_DAY], dt_util.now())
+            gear = _resolve_gear(call.data[ATTR_GEAR])
+            await coord.async_set_gear_now(day_id, gear, call.data.get("temp"))
 
-    async def async_handle_set_gear_until(call: ServiceCall) -> None:
-        day_id = resolve_day_id(call.data[ATTR_DAY], dt_util.now())
-        gear_raw = call.data[ATTR_GEAR]
-        gear = GEAR_NAME_TO_VALUE.get(gear_raw) if isinstance(gear_raw, str) else gear_raw
-        if not isinstance(gear, int):
-            raise ValueError(f"Unknown gear: {gear_raw}")
-        revert_raw = call.data.get("revert_gear")
-        revert: int | None = None
-        if revert_raw is not None:
-            revert = (
-                GEAR_NAME_TO_VALUE.get(revert_raw)
-                if isinstance(revert_raw, str)
-                else revert_raw
+        async def async_handle_set_gear_until(call: ServiceCall) -> None:
+            coord = _get_coordinator(hass)
+            day_id = resolve_day_id(call.data[ATTR_DAY], dt_util.now())
+            gear = _resolve_gear(call.data[ATTR_GEAR])
+            revert: int | None = None
+            revert_raw = call.data.get("revert_gear")
+            if revert_raw is not None:
+                revert = _resolve_gear(revert_raw, "revert_gear")
+            until_minutes = hhmm_to_minutes(call.data["until"])
+            await coord.async_set_gear_until(
+                day_id,
+                gear,
+                until_minutes,
+                temp=call.data.get("temp"),
+                revert_gear=revert,
             )
-            if not isinstance(revert, int):
-                raise ValueError(f"Unknown revert_gear: {revert_raw}")
-        until_minutes = hhmm_to_minutes(call.data["until"])
-        await coordinator.async_set_gear_until(
-            day_id,
-            gear,
-            until_minutes,
-            temp=call.data.get("temp"),
-            revert_gear=revert,
+
+        async def async_handle_restore_day_schedule(call: ServiceCall) -> None:
+            coord = _get_coordinator(hass)
+            day_id = resolve_day_id(call.data[ATTR_DAY], dt_util.now())
+            await coord.async_restore_day_schedule(day_id)
+
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_SET_DAY_SCHEDULE,
+            async_handle_set_day_schedule,
+            schema=SET_DAY_SCHEDULE_SCHEMA,
         )
-
-    async def async_handle_restore_day_schedule(call: ServiceCall) -> None:
-        day_id = resolve_day_id(call.data[ATTR_DAY], dt_util.now())
-        await coordinator.async_restore_day_schedule(day_id)
-
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_SET_DAY_SCHEDULE,
-        async_handle_set_day_schedule,
-        schema=SET_DAY_SCHEDULE_SCHEMA,
-    )
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_SET_GEAR_NOW,
-        async_handle_set_gear_now,
-        schema=SET_GEAR_NOW_SCHEMA,
-    )
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_SET_GEAR_UNTIL,
-        async_handle_set_gear_until,
-        schema=SET_GEAR_UNTIL_SCHEMA,
-    )
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_RESTORE_DAY_SCHEDULE,
-        async_handle_restore_day_schedule,
-        schema=RESTORE_DAY_SCHEDULE_SCHEMA,
-    )
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_SET_GEAR_NOW,
+            async_handle_set_gear_now,
+            schema=SET_GEAR_NOW_SCHEMA,
+        )
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_SET_GEAR_UNTIL,
+            async_handle_set_gear_until,
+            schema=SET_GEAR_UNTIL_SCHEMA,
+        )
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_RESTORE_DAY_SCHEDULE,
+            async_handle_restore_day_schedule,
+            schema=RESTORE_DAY_SCHEDULE_SCHEMA,
+        )
 
     return True
 

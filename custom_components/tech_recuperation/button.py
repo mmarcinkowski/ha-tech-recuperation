@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+import logging
+
 from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
+from .api import TechApiError
 from .const import DOMAIN, MENU_ID_PARTY_MODE_TRIGGER
 from .entity import TechRecuperationEntity
 from .helpers import python_weekday_to_day_id
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -31,6 +36,8 @@ async def async_setup_entry(
 
 class RestoreTodayScheduleButton(TechRecuperationEntity, ButtonEntity):
     """Restore backed-up schedule for today."""
+
+    _attr_icon = "mdi:backup-restore"
 
     def __init__(self, coordinator, udid: str) -> None:
         super().__init__(coordinator, udid)
@@ -59,6 +66,8 @@ class RestoreTodayScheduleButton(TechRecuperationEntity, ButtonEntity):
 class PartyModeTriggerButton(TechRecuperationEntity, ButtonEntity):
     """Trigger party mode."""
 
+    _attr_icon = "mdi:party-popper"
+
     def __init__(self, coordinator, udid: str) -> None:
         super().__init__(coordinator, udid)
         self._attr_unique_id = f"{udid}_party_mode_trigger"
@@ -73,11 +82,17 @@ class PartyModeTriggerButton(TechRecuperationEntity, ButtonEntity):
         )
 
     async def async_press(self) -> None:
-        await self.coordinator.api.set_control_value(
-            self.coordinator.user_id,
-            self.coordinator.token,
-            self.coordinator.udid,
-            MENU_ID_PARTY_MODE_TRIGGER,
-            1,
-        )
+        try:
+            await self.coordinator._async_api_call(
+                lambda: self.coordinator.api.set_control_value(
+                    self.coordinator.user_id,
+                    self.coordinator.token,
+                    self.coordinator.udid,
+                    MENU_ID_PARTY_MODE_TRIGGER,
+                    1,
+                )
+            )
+        except TechApiError as err:
+            _LOGGER.error("Failed to trigger party mode: %s", err)
+            raise
         await self.coordinator.async_request_refresh()

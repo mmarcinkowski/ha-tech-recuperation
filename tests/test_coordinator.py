@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from homeassistant.helpers.update_coordinator import UpdateFailed
+from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.tech_recuperation.coordinator import TechRecuperationCoordinator
 
@@ -37,6 +37,10 @@ def coordinator(sample_slots: list[dict[str, int]]) -> TechRecuperationCoordinat
         async_load=AsyncMock(return_value=None),
         async_save=AsyncMock(),
     )
+    config_entry = SimpleNamespace(
+        data={"user_id": 1, "token": "token", "username": "u", "password": "p"},
+        entry_id="test_entry_id",
+    )
     coord = TechRecuperationCoordinator(
         hass=SimpleNamespace(),
         api=api,
@@ -44,6 +48,7 @@ def coordinator(sample_slots: list[dict[str, int]]) -> TechRecuperationCoordinat
         token="token",
         udid="module-1",
         backup_store=store,
+        config_entry=config_entry,
     )
     coord.data = {"schedules": {1: [dict(slot) for slot in sample_slots]}}
     return coord
@@ -98,7 +103,7 @@ async def test_restore_day_schedule_raises_when_backup_missing(
     coordinator: TechRecuperationCoordinator,
 ) -> None:
     """Restore fails if no backup exists for target day."""
-    with pytest.raises(UpdateFailed, match="No backup schedule"):
+    with pytest.raises(HomeAssistantError, match="No backup schedule"):
         await coordinator.async_restore_day_schedule(1)
 
 

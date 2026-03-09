@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import logging
+
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
+from .api import TechApiError
 from .const import DOMAIN, GEAR_NAME_TO_VALUE, GEAR_OPTIONS, GEAR_VALUE_TO_NAME
 from .entity import TechRecuperationEntity
 from .helpers import python_weekday_to_day_id
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -29,7 +33,7 @@ class CurrentGearSelect(TechRecuperationEntity, SelectEntity):
     """Select for setting current gear by rewriting today's schedule."""
 
     _attr_options = GEAR_OPTIONS
-    _attr_entity_category = EntityCategory.CONFIG
+    _attr_icon = "mdi:fan"
 
     def __init__(self, coordinator, udid: str) -> None:
         super().__init__(coordinator, udid)
@@ -42,6 +46,9 @@ class CurrentGearSelect(TechRecuperationEntity, SelectEntity):
         return GEAR_VALUE_TO_NAME.get(gear, "gear_1")
 
     async def async_select_option(self, option: str) -> None:
-        gear = GEAR_NAME_TO_VALUE[option]
+        gear = GEAR_NAME_TO_VALUE.get(option)
+        if gear is None:
+            _LOGGER.error("Unknown gear option: %s", option)
+            return
         day_id = python_weekday_to_day_id(dt_util.now().weekday())
         await self.coordinator.async_set_gear_now(day_id, gear)

@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from homeassistant.util import dt as dt_util
+
 from .const import DAY_NAME_TO_ID, SCHEDULE_MAX_TIME, SCHEDULE_MIN_TIME
 
 
@@ -15,15 +17,18 @@ def python_weekday_to_day_id(weekday: int) -> int:
 
 def minutes_now(now: datetime | None = None) -> int:
     """Return current minute of day."""
-    dt = now or datetime.now()
+    dt = now or dt_util.now()
     return dt.hour * 60 + dt.minute
 
 
 def hhmm_to_minutes(value: str) -> int:
-    """Convert HH:MM string to minutes from midnight."""
-    hour_s, minute_s = value.split(":", maxsplit=1)
-    hour = int(hour_s)
-    minute = int(minute_s)
+    """Convert HH:MM or HH:MM:SS string to minutes from midnight."""
+    parts = value.split(":")
+    if len(parts) < 2:
+        raise ValueError(f"Invalid time format: {value}")
+    hour = int(parts[0])
+    minute = int(parts[1])
+    # Seconds (parts[2]) are silently discarded if present
     if hour < 0 or hour > 23 or minute < 0 or minute > 59:
         raise ValueError(f"Invalid time: {value}")
     return hour * 60 + minute
@@ -38,7 +43,7 @@ def to_minutes(value: int | str) -> int:
 
 def resolve_day_id(target_day: str, now: datetime | None = None) -> int:
     """Resolve service target day to day id."""
-    dt = now or datetime.now()
+    dt = now or dt_util.now()
     target = target_day.lower()
     if target == "today":
         return python_weekday_to_day_id(dt.weekday())
