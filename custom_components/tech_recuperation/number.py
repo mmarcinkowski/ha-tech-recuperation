@@ -68,7 +68,10 @@ class MenuNumberEntity(TechRecuperationEntity, NumberEntity):
 
     @property
     def available(self) -> bool:
-        return self._menu_id in self.coordinator.data.get("menu_controls", {})
+        return (
+            super().available
+            and self._menu_id in self.coordinator.data.get("menu_controls", {})
+        )
 
     @property
     def native_value(self) -> float | None:

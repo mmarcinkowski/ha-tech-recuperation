@@ -103,7 +103,7 @@ def apply_gear_now(
 
     for slot in slots:
         new_slot = dict(slot)
-        if int(new_slot["end"]) >= now_m:
+        if int(new_slot["end"]) > now_m:
             new_slot["interval"] = gear
             if temp is not None:
                 new_slot["temp"] = temp
@@ -140,7 +140,7 @@ def apply_gear_until(
         start = int(new_slot["start"])
         end = int(new_slot["end"])
 
-        if end >= now_m and start < until_minute:
+        if end > now_m and start < until_minute:
             new_slot["interval"] = gear
             if temp is not None:
                 new_slot["temp"] = temp

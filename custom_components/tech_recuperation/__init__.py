@@ -11,6 +11,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from .api import TechAPI
@@ -102,6 +103,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except Exception:  # noqa: BLE001
             _LOGGER.warning("Could not refresh token at startup, using stored token")
 
+    backup_store: Store[dict[str, Any]] = Store(
+        hass,
+        1,
+        f"{DOMAIN}.{entry.entry_id}.schedule_backups",
+    )
+
     coordinator = TechRecuperationCoordinator(
         hass=hass,
         api=api,
@@ -110,7 +117,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         udid=udid,
         username=username,
         password=password,
+        backup_store=backup_store,
     )
+    await coordinator.async_load_backups()
     await coordinator.async_config_entry_first_refresh()
 
     hass.data[DOMAIN][entry.entry_id] = {
@@ -127,26 +136,34 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def async_handle_set_gear_now(call: ServiceCall) -> None:
         day_id = resolve_day_id(call.data[ATTR_DAY], dt_util.now())
         gear_raw = call.data[ATTR_GEAR]
-        gear = GEAR_NAME_TO_VALUE.get(gear_raw, gear_raw)
-        if gear is None:
-            raise ValueError("gear is required")
-        await coordinator.async_set_gear_now(day_id, int(gear), call.data.get("temp"))
+        gear = GEAR_NAME_TO_VALUE.get(gear_raw) if isinstance(gear_raw, str) else gear_raw
+        if not isinstance(gear, int):
+            raise ValueError(f"Unknown gear: {gear_raw}")
+        await coordinator.async_set_gear_now(day_id, gear, call.data.get("temp"))
 
     async def async_handle_set_gear_until(call: ServiceCall) -> None:
         day_id = resolve_day_id(call.data[ATTR_DAY], dt_util.now())
         gear_raw = call.data[ATTR_GEAR]
-        gear = GEAR_NAME_TO_VALUE.get(gear_raw, gear_raw)
+        gear = GEAR_NAME_TO_VALUE.get(gear_raw) if isinstance(gear_raw, str) else gear_raw
+        if not isinstance(gear, int):
+            raise ValueError(f"Unknown gear: {gear_raw}")
         revert_raw = call.data.get("revert_gear")
-        revert = GEAR_NAME_TO_VALUE.get(revert_raw, revert_raw) if revert_raw is not None else None
+        revert: int | None = None
+        if revert_raw is not None:
+            revert = (
+                GEAR_NAME_TO_VALUE.get(revert_raw)
+                if isinstance(revert_raw, str)
+                else revert_raw
+            )
+            if not isinstance(revert, int):
+                raise ValueError(f"Unknown revert_gear: {revert_raw}")
         until_minutes = hhmm_to_minutes(call.data["until"])
-        if gear is None:
-            raise ValueError("gear is required")
         await coordinator.async_set_gear_until(
             day_id,
-            int(gear),
+            gear,
             until_minutes,
             temp=call.data.get("temp"),
-            revert_gear=int(revert) if revert is not None else None,
+            revert_gear=revert,
         )
 
     async def async_handle_restore_day_schedule(call: ServiceCall) -> None:

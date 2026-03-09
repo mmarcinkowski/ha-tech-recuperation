@@ -40,7 +40,7 @@ class RestoreTodayScheduleButton(TechRecuperationEntity, ButtonEntity):
     @property
     def available(self) -> bool:
         day_id = python_weekday_to_day_id(dt_util.now().weekday())
-        return day_id in self.coordinator.schedule_backups
+        return super().available and day_id in self.coordinator.schedule_backups
 
     @property
     def extra_state_attributes(self) -> dict[str, int]:
@@ -66,7 +66,11 @@ class PartyModeTriggerButton(TechRecuperationEntity, ButtonEntity):
 
     @property
     def available(self) -> bool:
-        return MENU_ID_PARTY_MODE_TRIGGER in self.coordinator.data.get("menu_controls", {})
+        return (
+            super().available
+            and MENU_ID_PARTY_MODE_TRIGGER
+            in self.coordinator.data.get("menu_controls", {})
+        )
 
     async def async_press(self) -> None:
         await self.coordinator.api.set_control_value(

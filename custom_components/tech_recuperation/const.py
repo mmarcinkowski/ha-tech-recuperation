@@ -93,7 +93,6 @@ CONF_TOKEN = "token"
 CONF_MODULE_UDID = "module_udid"
 CONF_MODULE_NAME = "module_name"
 CONF_EMAIL = "email"
-CONF_MODULE_ID = "module_udid"
 
 # Service names
 SERVICE_SET_DAY_SCHEDULE = "set_day_schedule"

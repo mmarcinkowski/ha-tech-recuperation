@@ -7,6 +7,7 @@ from datetime import timedelta
 from typing import Any
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -19,18 +20,15 @@ from .const import (
     SCAN_INTERVAL,
     SCHEDULE_NUM_ROWS,
 )
-from .helpers import apply_gear_now, apply_gear_until, minutes_now, normalize_slots
+from .helpers import (
+    apply_gear_now,
+    apply_gear_until,
+    minutes_now,
+    normalize_slots,
+    python_weekday_to_day_id,
+)
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _python_weekday_to_day_id(weekday: int) -> int:
-    """Convert Python weekday (0=Monday) to eMODUL dayId (0=Sunday).
-
-    Python: 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun
-    eMODUL: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
-    """
-    return (weekday + 1) % 7
 
 
 def _parse_schedules(
@@ -84,7 +82,7 @@ def _get_current_gear(
     Returns:
         (gear, slot_index) tuple. gear is 0-3, slot_index is 0-4.
     """
-    day_id = _python_weekday_to_day_id(now.weekday())
+    day_id = python_weekday_to_day_id(now.weekday())
     slots = schedules.get(day_id, [])
     minutes = now.hour * 60 + now.minute
 
@@ -113,6 +111,7 @@ class TechRecuperationCoordinator(DataUpdateCoordinator):
         udid: str,
         username: str | None = None,
         password: str | None = None,
+        backup_store: Store[dict[str, Any]] | None = None,
     ) -> None:
         """Initialize the coordinator."""
         super().__init__(
@@ -127,12 +126,39 @@ class TechRecuperationCoordinator(DataUpdateCoordinator):
         self.udid = udid
         self.username = username
         self.password = password
+        self._backup_store = backup_store
         self._schedule_backups: dict[int, list[dict[str, int]]] = {}
 
     @property
     def schedule_backups(self) -> dict[int, list[dict[str, int]]]:
         """Expose schedule backups for entities/services."""
         return self._schedule_backups
+
+    async def async_load_backups(self) -> None:
+        """Load persisted schedule backups from storage."""
+        if self._backup_store is None:
+            return
+
+        stored = await self._backup_store.async_load()
+        if not stored:
+            return
+
+        loaded: dict[int, list[dict[str, int]]] = {}
+        for day_id_raw, slots in stored.items():
+            try:
+                day_id = int(day_id_raw)
+                loaded[day_id] = normalize_slots(slots)
+            except (TypeError, ValueError):
+                _LOGGER.debug("Skipping invalid persisted backup for day_id=%s", day_id_raw)
+
+        self._schedule_backups = loaded
+
+    async def _async_save_backups(self) -> None:
+        """Persist current schedule backups to storage."""
+        if self._backup_store is None:
+            return
+        payload = {str(day_id): slots for day_id, slots in self._schedule_backups.items()}
+        await self._backup_store.async_save(payload)
 
     async def _async_fetch(self) -> tuple[dict[str, Any], dict[str, Any]]:
         """Fetch module and menu data, re-authenticating if needed."""
@@ -209,6 +235,11 @@ class TechRecuperationCoordinator(DataUpdateCoordinator):
         self, day_id: int, slots: list[dict[str, Any]]
     ) -> None:
         """Set full day schedule and refresh coordinator."""
+        current_slots = self.get_day_schedule(day_id)
+        if current_slots and day_id not in self._schedule_backups:
+            self._schedule_backups[day_id] = [dict(s) for s in current_slots]
+            await self._async_save_backups()
+
         element_id = DAY_ELEMENT_IDS[day_id]
         normalized = normalize_slots(slots)
         await self.api.set_schedule(
@@ -231,9 +262,10 @@ class TechRecuperationCoordinator(DataUpdateCoordinator):
             raise UpdateFailed(f"No schedule found for day_id {day_id}")
         if day_id not in self._schedule_backups:
             self._schedule_backups[day_id] = [dict(slot) for slot in slots]
+            await self._async_save_backups()
 
         now = dt_util.now()
-        today_day_id = _python_weekday_to_day_id(now.weekday())
+        today_day_id = python_weekday_to_day_id(now.weekday())
         effective_now = minutes_now(now) if day_id == today_day_id else 0
         updated = apply_gear_now(slots, gear, temp=temp, now_minute=effective_now)
         element_id = DAY_ELEMENT_IDS[day_id]
@@ -268,9 +300,10 @@ class TechRecuperationCoordinator(DataUpdateCoordinator):
 
         if day_id not in self._schedule_backups:
             self._schedule_backups[day_id] = [dict(slot) for slot in slots]
+            await self._async_save_backups()
 
         now = dt_util.now()
-        today_day_id = _python_weekday_to_day_id(now.weekday())
+        today_day_id = python_weekday_to_day_id(now.weekday())
         effective_now = minutes_now(now) if day_id == today_day_id else 0
         updated = apply_gear_until(
             slots,
@@ -306,4 +339,5 @@ class TechRecuperationCoordinator(DataUpdateCoordinator):
             normalized,
         )
         del self._schedule_backups[day_id]
+        await self._async_save_backups()
         await self.async_request_refresh()

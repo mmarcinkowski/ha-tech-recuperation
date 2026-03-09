@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .coordinator import TechRecuperationCoordinator
@@ -18,7 +20,7 @@ class TechRecuperationEntity(CoordinatorEntity[TechRecuperationCoordinator]):
         self._udid = udid
 
     @property
-    def device_info(self):
+    def device_info(self) -> dict[str, Any]:
         """Return shared device info."""
         return {
             "identifiers": {("tech_recuperation", self._udid)},

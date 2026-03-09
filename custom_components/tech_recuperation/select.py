@@ -5,6 +5,7 @@ from __future__ import annotations
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
@@ -28,7 +29,7 @@ class CurrentGearSelect(TechRecuperationEntity, SelectEntity):
     """Select for setting current gear by rewriting today's schedule."""
 
     _attr_options = GEAR_OPTIONS
-    _attr_entity_category = "config"
+    _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, coordinator, udid: str) -> None:
         super().__init__(coordinator, udid)
