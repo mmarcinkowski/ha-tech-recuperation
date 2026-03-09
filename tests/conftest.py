@@ -34,8 +34,40 @@ if "homeassistant.config_entries" not in sys.modules:
     class ConfigEntry:  # noqa: D101
         pass
 
+    class ConfigFlow:  # noqa: D101
+        def __init_subclass__(cls, **kwargs):
+            return super().__init_subclass__()
+
+        def async_show_form(self, *, step_id, data_schema=None, errors=None):
+            return {
+                "type": "form",
+                "step_id": step_id,
+                "data_schema": data_schema,
+                "errors": errors or {},
+            }
+
+        def async_create_entry(self, *, title, data):
+            return {
+                "type": "create_entry",
+                "title": title,
+                "data": data,
+            }
+
     setattr(ce_mod, "ConfigEntry", ConfigEntry)
+    setattr(ce_mod, "ConfigFlow", ConfigFlow)
+    setattr(ce_mod, "ConfigFlowResult", dict)
     sys.modules["homeassistant.config_entries"] = ce_mod
+
+if "homeassistant.const" not in sys.modules:
+    const_mod = types.ModuleType("homeassistant.const")
+
+    class UnitOfTemperature:  # noqa: D101
+        CELSIUS = "C"
+
+    setattr(const_mod, "UnitOfTemperature", UnitOfTemperature)
+    setattr(const_mod, "CONF_USERNAME", "username")
+    setattr(const_mod, "CONF_PASSWORD", "password")
+    sys.modules["homeassistant.const"] = const_mod
 
 if "homeassistant.util" not in sys.modules:
     util_mod = types.ModuleType("homeassistant.util")
@@ -52,6 +84,15 @@ if "homeassistant.helpers" not in sys.modules:
     helpers_mod = types.ModuleType("homeassistant.helpers")
     helpers_mod.__path__ = []
     sys.modules["homeassistant.helpers"] = helpers_mod
+
+if "homeassistant.helpers.aiohttp_client" not in sys.modules:
+    ac_mod = types.ModuleType("homeassistant.helpers.aiohttp_client")
+
+    def async_get_clientsession(_hass):
+        return None
+
+    setattr(ac_mod, "async_get_clientsession", async_get_clientsession)
+    sys.modules["homeassistant.helpers.aiohttp_client"] = ac_mod
 
 if "homeassistant.helpers.storage" not in sys.modules:
     storage_mod = types.ModuleType("homeassistant.helpers.storage")
@@ -148,6 +189,15 @@ if "homeassistant.components.select" not in sys.modules:
 
     setattr(select_mod, "SelectEntity", SelectEntity)
     sys.modules["homeassistant.components.select"] = select_mod
+
+if "homeassistant.components.sensor" not in sys.modules:
+    sensor_mod = types.ModuleType("homeassistant.components.sensor")
+
+    class SensorEntity:  # noqa: D101
+        pass
+
+    setattr(sensor_mod, "SensorEntity", SensorEntity)
+    sys.modules["homeassistant.components.sensor"] = sensor_mod
 
 if "homeassistant.components.switch" not in sys.modules:
     switch_mod = types.ModuleType("homeassistant.components.switch")
