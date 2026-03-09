@@ -1,0 +1,129 @@
+set_day_schedule:
+  name: Set Day Schedule
+  description: Overwrite full 5-slot schedule for selected day.
+  fields:
+    day:
+      required: true
+      example: tomorrow
+      selector:
+        select:
+          options:
+            - today
+            - tomorrow
+            - sunday
+            - monday
+            - tuesday
+            - wednesday
+            - thursday
+            - friday
+            - saturday
+    slots:
+      required: true
+      selector:
+        object:
+
+set_gear_now:
+  name: Set Gear Now
+  description: Set gear from current time to end of day.
+  fields:
+    day:
+      required: false
+      default: today
+      selector:
+        select:
+          options:
+            - today
+            - tomorrow
+            - sunday
+            - monday
+            - tuesday
+            - wednesday
+            - thursday
+            - friday
+            - saturday
+    gear:
+      required: true
+      selector:
+        select:
+          options:
+            - off
+            - gear_1
+            - gear_2
+            - gear_3
+    temp:
+      required: false
+      selector:
+        number:
+          min: 10
+          max: 30
+          step: 1
+
+set_gear_until:
+  name: Set Gear Until
+  description: Set gear from now until HH:MM.
+  fields:
+    day:
+      required: false
+      default: today
+      selector:
+        select:
+          options:
+            - today
+            - tomorrow
+            - sunday
+            - monday
+            - tuesday
+            - wednesday
+            - thursday
+            - friday
+            - saturday
+    gear:
+      required: true
+      selector:
+        select:
+          options:
+            - off
+            - gear_1
+            - gear_2
+            - gear_3
+    until:
+      required: true
+      example: "22:00"
+      selector:
+        time:
+    temp:
+      required: false
+      selector:
+        number:
+          min: 10
+          max: 30
+          step: 1
+    revert_gear:
+      required: false
+      selector:
+        select:
+          options:
+            - off
+            - gear_1
+            - gear_2
+            - gear_3
+
+restore_day_schedule:
+  name: Restore Day Schedule
+  description: Restore previously backed-up schedule for selected day.
+  fields:
+    day:
+      required: false
+      default: today
+      selector:
+        select:
+          options:
+            - today
+            - tomorrow
+            - sunday
+            - monday
+            - tuesday
+            - wednesday
+            - thursday
+            - friday
+            - saturday

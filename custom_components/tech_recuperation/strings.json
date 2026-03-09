@@ -1,0 +1,27 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to eMODUL",
+        "description": "Enter your eMODUL credentials.",
+        "data": {
+          "username": "Email",
+          "password": "Password"
+        }
+      },
+      "select_module": {
+        "title": "Select module",
+        "description": "Select the Tech module for your recuperation unit.",
+        "data": {
+          "module_udid": "Module"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid authentication",
+      "cannot_connect": "Cannot connect",
+      "unknown": "Unexpected error",
+      "no_modules": "No modules found"
+    }
+  }
+}
