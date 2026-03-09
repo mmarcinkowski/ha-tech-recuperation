@@ -211,3 +211,10 @@ Then unpack it into your HA config under `custom_components/`.
 - Cloud dependency: no local/offline controller API support.
 - Service schemas allow flexible values, but runtime validation enforces ranges and schedule shape.
 - Integration targets ST-340 V2/eMODUL behavior and day-element mapping known for this controller family.
+
+## Security
+
+- **Credential storage**: Your eMODUL username, password, and API token are stored in Home Assistant config entries (`.storage/core.config_entries` on disk). This is the standard mechanism used by HA integrations and is not additionally encrypted at rest.
+- **Do not share** HA backups, `.storage` files, or diagnostic logs publicly without reviewing them for credentials first.
+- **Logging**: This integration never intentionally logs passwords, tokens, or authorization headers. API error responses are truncated and exception messages are sanitized to avoid leaking sensitive data in log files.
+- **Transport**: All API communication uses HTTPS to the eMODUL cloud endpoint.

@@ -125,10 +125,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     CONF_TOKEN: token,
                 },
             )
-        except (TechApiError, TechAuthError, TechConnectionError):
-            _LOGGER.warning("Could not refresh token at startup, using stored token")
-        except Exception:  # noqa: BLE001
-            _LOGGER.exception("Unexpected error refreshing token at startup")
+        except (TechApiError, TechAuthError, TechConnectionError) as err:
+            _LOGGER.warning(
+                "Could not refresh token at startup (%s), using stored token",
+                type(err).__name__,
+            )
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning(
+                "Unexpected error refreshing token at startup: %s",
+                type(err).__name__,
+            )
 
     backup_store: Store[dict[str, Any]] = Store(
         hass,

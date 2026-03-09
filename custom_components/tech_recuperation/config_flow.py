@@ -56,7 +56,7 @@ class TechRecuperationConfigFlow(
             except TechConnectionError:
                 errors["base"] = "cannot_connect"
             except Exception:
-                _LOGGER.exception("Unexpected error during authentication")
+                _LOGGER.error("Unexpected error during authentication")
                 errors["base"] = "unknown"
 
             if not errors:
@@ -72,7 +72,7 @@ class TechRecuperationConfigFlow(
                 except TechApiError:
                     errors["base"] = "cannot_connect"
                 except Exception:
-                    _LOGGER.exception("Failed to fetch modules")
+                    _LOGGER.error("Failed to fetch modules")
                     errors["base"] = "unknown"
 
             if not errors:

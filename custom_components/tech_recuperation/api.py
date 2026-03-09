@@ -60,16 +60,22 @@ class TechAPI:
                     raise TechAuthError("Authentication failed or token expired")
                 if not (200 <= resp.status < 300):
                     text = await resp.text()
+                    # Truncate response body to avoid leaking sensitive data in logs/exceptions
+                    safe_text = (text[:200] + "…") if len(text) > 200 else text
                     raise TechApiError(
-                        f"API request failed: {resp.status} {text}"
+                        f"API request failed: {resp.status} {safe_text}"
                     )
                 return await resp.json()
         except TechApiError:
             raise
         except (ValueError, aiohttp.ContentTypeError) as err:
-            raise TechApiError(f"Invalid response body: {err}") from err
+            raise TechApiError(
+                f"Invalid response body: {type(err).__name__}"
+            ) from err
         except aiohttp.ClientError as err:
-            raise TechConnectionError(f"Connection error: {err}") from err
+            raise TechConnectionError(
+                f"Connection error: {type(err).__name__}"
+            ) from err
 
     # ---- Authentication ----
 
@@ -149,7 +155,7 @@ class TechAPI:
                    temp is degrees C (10-30).
         """
         _LOGGER.debug(
-            "Setting schedule for element %s: %s", element_id, slots
+            "Setting schedule for element %s (%d slots)", element_id, len(slots)
         )
         return await self._request(
             "POST",
