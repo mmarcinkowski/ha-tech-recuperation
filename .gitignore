@@ -1,4 +1,6 @@
 .DS_Store
+.venv/
+.opencode/
 .opencode/node_modules/
 .opencode/.DS_Store
 __pycache__/
