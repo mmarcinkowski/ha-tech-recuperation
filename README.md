@@ -9,9 +9,9 @@ Custom Home Assistant integration for Wanas recuperation units controlled throug
 - Cloud polling coordinator (`iot_class: cloud_polling`).
 - Entities:
   - Sensors: current gear, known temperature sensors, heat recovery efficiency.
-  - Switch: recuperation on/off.
+  - Switch: bypass on/off.
   - Select: temporary gear override.
-  - Number: party mode duration, recuperation parameter.
+  - Number: party mode duration, holiday mode (days).
   - Buttons: party mode trigger, restore today's backed-up schedule.
 - Services for schedule and gear control:
   - `tech_recuperation.set_day_schedule`

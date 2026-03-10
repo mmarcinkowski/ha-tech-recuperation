@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .api import TechApiError
-from .const import DOMAIN, MENU_ID_PARTY_MODE_DURATION, MENU_ID_RECUPERATION_PARAM
+from .const import DOMAIN, MENU_ID_HOLIDAY_MODE, MENU_ID_PARTY_MODE_DURATION
 from .entity import TechRecuperationEntity
 
 _LOGGER = logging.getLogger(__name__)
@@ -38,8 +38,8 @@ async def async_setup_entry(
             MenuNumberEntity(
                 coordinator,
                 udid,
-                MENU_ID_RECUPERATION_PARAM,
-                "Recuperation Parameter",
+                MENU_ID_HOLIDAY_MODE,
+                "Holiday Mode",
                 0,
                 30,
                 1,
@@ -70,6 +70,8 @@ class MenuNumberEntity(TechRecuperationEntity, NumberEntity):
         self._attr_native_step = native_step
         if menu_id == MENU_ID_PARTY_MODE_DURATION:
             self._attr_native_unit_of_measurement = "min"
+        elif menu_id == MENU_ID_HOLIDAY_MODE:
+            self._attr_native_unit_of_measurement = "d"
 
     @property
     def available(self) -> bool:

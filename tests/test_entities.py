@@ -13,13 +13,13 @@ from custom_components.tech_recuperation.button import (
 )
 from custom_components.tech_recuperation import button as button_module
 from custom_components.tech_recuperation.const import (
+    MENU_ID_BYPASS_ONOFF,
     MENU_ID_PARTY_MODE_DURATION,
     MENU_ID_PARTY_MODE_TRIGGER,
-    MENU_ID_RECUPERATION_ONOFF,
 )
 from custom_components.tech_recuperation.number import MenuNumberEntity
 from custom_components.tech_recuperation.select import CurrentGearSelect
-from custom_components.tech_recuperation.switch import RecuperationPowerSwitch
+from custom_components.tech_recuperation.switch import BypassSwitch
 
 
 @pytest.fixture
@@ -36,7 +36,7 @@ def coordinator() -> SimpleNamespace:
         data={
             "current_gear": 2,
             "menu_controls": {
-                MENU_ID_RECUPERATION_ONOFF: {"params": {"value": 1}},
+                MENU_ID_BYPASS_ONOFF: {"params": {"value": 1}},
                 MENU_ID_PARTY_MODE_DURATION: {"params": {"value": 120}},
                 MENU_ID_PARTY_MODE_TRIGGER: {"params": {"value": 0}},
             },
@@ -69,7 +69,7 @@ async def test_switch_turn_on_off_calls_menu_control(
     coordinator: SimpleNamespace,
 ) -> None:
     """Switch on/off writes expected control values."""
-    entity = RecuperationPowerSwitch(coordinator, "module-1")
+    entity = BypassSwitch(coordinator, "module-1")
     assert entity.is_on is True
 
     await entity.async_turn_off()

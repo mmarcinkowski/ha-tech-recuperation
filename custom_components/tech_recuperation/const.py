@@ -70,8 +70,8 @@ GEAR_NAME_TO_VALUE: dict[str, int] = {
 GEAR_VALUE_TO_NAME: dict[int, str] = {v: k for k, v in GEAR_NAME_TO_VALUE.items()}
 
 # --- Known menu IDs ---
-MENU_ID_RECUPERATION_ONOFF = 1049
-MENU_ID_RECUPERATION_PARAM = 1051  # Number value 0-30 (unknown purpose)
+MENU_ID_BYPASS_ONOFF = 1049
+MENU_ID_HOLIDAY_MODE = 1051  # Holiday mode duration in days (0-30)
 MENU_ID_PARTY_MODE_TRIGGER = 1053  # Yes/No dialog to activate party mode
 MENU_ID_PARTY_MODE_DURATION = 1054  # Number 15-720 minutes
 MENU_ID_SCHEDULE_PARENT = 30010  # Parent group for all schedule elements
