@@ -31,7 +31,27 @@ Custom Home Assistant integration for Wanas recuperation units controlled throug
 
 ## Installation
 
-### Option A: Manual install
+### Option A: HACS (recommended)
+
+1. Open HACS in Home Assistant.
+2. Go to Integrations and click the three-dot menu in the top-right corner.
+3. Select Custom repositories.
+4. Add repository URL:
+
+```text
+https://github.com/mmarcinkowski/ha-tech-recuperation
+```
+
+5. Select category: Integration.
+6. Click Add, then find `Tech Recuperation (Wanas)` and click Download.
+7. Restart Home Assistant.
+8. Go to `Settings -> Devices & Services -> Add Integration`.
+9. Search for `Tech Recuperation (Wanas)`.
+10. Enter eMODUL credentials and select module when prompted.
+
+[![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=tech_recuperation)
+
+### Option B: Manual install
 
 1. Copy this folder to your Home Assistant config directory:
 
@@ -44,7 +64,7 @@ Custom Home Assistant integration for Wanas recuperation units controlled throug
 4. Search for `Tech Recuperation (Wanas)`.
 5. Enter eMODUL credentials and select module when prompted.
 
-### Option B: Git checkout in HA config
+### Option C: Git checkout in HA config
 
 If you manage HA config with git, place this repository content so the integration lands at:
 

@@ -5,7 +5,9 @@
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/mmarcinkowski/ha-tech-recuperation",
+  "integration_type": "hub",
   "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/mmarcinkowski/ha-tech-recuperation/issues",
   "requirements": [],
   "version": "0.1.0"
 }
