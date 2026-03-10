@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 from custom_components.tech_recuperation.sensor import (
     CurrentGearSensor,
+    FanPowerWidgetSensor,
     HeatRecoveryEfficiencySensor,
     TemperatureTileSensor,
     TemperatureWidgetSensor,
@@ -79,3 +80,23 @@ def test_heat_recovery_efficiency_returns_none_on_invalid_input() -> None:
     )
     sensor = HeatRecoveryEfficiencySensor(coordinator, "module-1")
     assert sensor.native_value is None
+
+
+def test_fan_power_widget_sensor_reads_raw_value() -> None:
+    """Fan power widget sensor reads raw value without scaling."""
+    coordinator = SimpleNamespace(
+        data={
+            "tiles": {
+                1: {
+                    "params": {
+                        "widget1": {"txtId": 6157, "value": 162},
+                        "widget2": {"txtId": 6158, "value": 191},
+                    }
+                }
+            }
+        },
+    )
+    supply = FanPowerWidgetSensor(coordinator, "module-1", 6157)
+    extract = FanPowerWidgetSensor(coordinator, "module-1", 6158)
+    assert supply.native_value == 162
+    assert extract.native_value == 191

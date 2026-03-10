@@ -82,12 +82,19 @@ TEMP_SENSOR_NAMES: dict[int, str] = {
     1841: "Extract Air",  # Air extracted from rooms
     1840: "Supply Air",   # Air supplied to rooms (after heat exchange)
     1842: "Exhaust Air",  # Air exhausted to outside (after heat exchange)
-    6158: "Temperature 5",
-    6157: "Temperature 6",
 }
 
 # txtIds that are temperature sensors (for auto-detection)
-TEMP_SENSOR_TXTIDS = {795, 1840, 1841, 1842, 6157, 6158}
+TEMP_SENSOR_TXTIDS = {795, 1840, 1841, 1842}
+
+# --- Fan power sensor txtId mapping (raw integer values, no scaling) ---
+FAN_POWER_SENSOR_NAMES: dict[int, str] = {
+    6158: "Extract FX",  # Moc wywiewu FX
+    6157: "Supply FX",   # Moc nawiewu FX
+}
+
+# txtIds that are fan power sensors (for auto-detection in widgets)
+FAN_POWER_SENSOR_TXTIDS = {6157, 6158}
 
 # Configuration keys
 CONF_USER_ID = "user_id"

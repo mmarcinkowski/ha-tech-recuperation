@@ -10,7 +10,15 @@ from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, GEAR_VALUE_TO_NAME, TEMP_SENSOR_NAMES, TEMP_SENSOR_TXTIDS, TEMPERATURE_DIVISOR
+from .const import (
+    DOMAIN,
+    FAN_POWER_SENSOR_NAMES,
+    FAN_POWER_SENSOR_TXTIDS,
+    GEAR_VALUE_TO_NAME,
+    TEMP_SENSOR_NAMES,
+    TEMP_SENSOR_TXTIDS,
+    TEMPERATURE_DIVISOR,
+)
 from .entity import TechRecuperationEntity
 
 
@@ -46,6 +54,17 @@ async def async_setup_entry(
             if txt_id in TEMP_SENSOR_TXTIDS and int(txt_id) not in seen_txt_ids:
                 seen_txt_ids.add(int(txt_id))
                 entities.append(TemperatureWidgetSensor(coordinator, udid, int(txt_id)))
+
+    # Detect fan power widgets
+    seen_fan_power_txt_ids: set[int] = set()
+    for tile in coordinator.data.get("tiles", {}).values():
+        params = tile.get("params", {})
+        for widget_key in ("widget1", "widget2"):
+            widget = params.get(widget_key, {})
+            txt_id = widget.get("txtId")
+            if txt_id in FAN_POWER_SENSOR_TXTIDS and int(txt_id) not in seen_fan_power_txt_ids:
+                seen_fan_power_txt_ids.add(int(txt_id))
+                entities.append(FanPowerWidgetSensor(coordinator, udid, int(txt_id)))
 
     async_add_entities(entities)
 
@@ -121,6 +140,32 @@ class CurrentGearSensor(TechRecuperationEntity, SensorEntity):
         return {
             "current_slot_index": self.coordinator.data.get("current_slot_index", 0),
         }
+
+
+class FanPowerWidgetSensor(TechRecuperationEntity, SensorEntity):
+    """Fan power sensor sourced from tile widget values."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:fan"
+
+    def __init__(self, coordinator, udid: str, txt_id: int) -> None:
+        super().__init__(coordinator, udid)
+        self._txt_id = txt_id
+        self._attr_unique_id = f"{udid}_fan_power_{txt_id}"
+        self._attr_name = FAN_POWER_SENSOR_NAMES.get(txt_id, f"Fan Power {txt_id}")
+
+    @property
+    def native_value(self) -> int | None:
+        for tile in self.coordinator.data.get("tiles", {}).values():
+            params = tile.get("params", {})
+            for widget_key in ("widget1", "widget2"):
+                widget = params.get(widget_key, {})
+                if widget.get("txtId") == self._txt_id:
+                    value = widget.get("value")
+                    if value is None:
+                        return None
+                    return int(value)
+        return None
 
 
 class HeatRecoveryEfficiencySensor(TechRecuperationEntity, SensorEntity):
